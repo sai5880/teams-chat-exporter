@@ -68,6 +68,20 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "teams_build_viewer",
+        "description": "Compile an existing export folder into a Teams-style offline HTML reader (chat.html) with images and attachments.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "Export folder containing messages.json."},
+                "embed": {"type": "boolean", "description": "Inline images into a single portable HTML file. Default false."},
+                "open": {"type": "boolean", "description": "Open the result in the default browser. Default false."},
+            },
+            "required": ["folder"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -97,6 +111,13 @@ def call_tool(name, arguments):
             bool(arguments.get("media", True)),
             bool(arguments.get("zip", False)),
         )
+    elif name == "teams_build_viewer":
+        folder = (arguments.get("folder") or "").strip()
+        if not folder:
+            raise ValueError("'folder' is required")
+        result = quiet_call(tw.command_view, folder,
+                            bool(arguments.get("embed", False)),
+                            bool(arguments.get("open", False)))
     else:
         raise ValueError(f"Unknown tool: {name}")
     return result

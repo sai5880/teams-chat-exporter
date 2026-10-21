@@ -13,6 +13,7 @@ Export your own **Microsoft Teams Free / personal** chats and group chats — me
 - Works with **personal Microsoft accounts** (Teams Free), including group and meeting chats.
 - **One sign-in, no scrolling.** After `login`, chats are listed and full history is paged through the API — you do not open or scroll any chat.
 - **Media export**: shared files, attachments, ZIPs and inline images are downloaded into `media/`, with a `manifest.json` recording source URL, size and status (`downloaded`, `reused`, `skipped` for emoji/sticker CDN assets, `failed`).
+- **Built-in reader**: every export compiles an offline Teams-style `chat.html` with avatars, day separators, image lightbox, attachment cards, search, dark mode and print support.
 - Clean messages: sender, local + UTC timestamp, plain text, links, reactions, message id, thread id.
 - JSON + Excel-friendly CSV (UTF-8 BOM) + optional `.zip` of the whole export.
 - Optional join/leave and call events (`--include-system`, `--include-events`).
@@ -74,6 +75,7 @@ exports/
     messages.json     all messages (+ rawContent, media[])
     messages.csv      timestampLocal, sender, text, attachments, mediaFiles, ...
     manifest.json     every media item: source, local path, bytes, status, error
+    chat.html         offline Teams-style reader (open in any browser)
     media/            downloaded files, images, ZIPs (original names where possible)
   my_group_chat_20250101T120000Z.zip
 ```
@@ -85,15 +87,25 @@ Flags:
 | `--chat` | Chat title substring or full conversation id (required) |
 | `--out` | Output folder (default `exports/`) |
 | `--no-media` | Skip downloading files/images |
-| `--zip` | Also write a `.zip` of the export folder |
+| `--zip` | Also write a `.zip` of the export folder (includes `chat.html`) |
+| `--no-viewer` | Skip building `chat.html` |
 | `--include-system` | Keep join/leave/rename events |
 | `--include-events` | Keep call events (summarized) |
+
+Rebuild the reader for an existing export, or make a portable single file:
+
+```powershell
+python teams_web_export.py view exports\my_group_chat_20250101T120000Z --open
+python teams_web_export.py view exports\my_group_chat_20250101T120000Z --embed --open
+```
+
+`--embed` inlines images into `chat.html` so the single file can be shared on its own (larger, no `media/` needed).
 
 ## Using it from AI agents
 
 - Read [AGENTS.md](AGENTS.md) — it documents the command contract, JSON schemas, error table and hard security rules.
 - Every command supports `--json` for a single parseable object on stdout.
-- `mcp_server.py` exposes `teams_status`, `teams_list_chats` and `teams_export_chat` over MCP stdio. Example client config is in AGENTS.md.
+- `mcp_server.py` exposes `teams_status`, `teams_list_chats`, `teams_export_chat` and `teams_build_viewer` over MCP stdio. Example client config is in AGENTS.md.
 
 ## Output format
 

@@ -1,4 +1,4 @@
-﻿"""Export a Teams (personal) chat to JSON/CSV, including shared files and images.
+"""Export a Teams (personal) chat to JSON/CSV, including shared files and images.
 
 Teams Free and personal Microsoft accounts cannot use Microsoft Graph
 (`/chats/{id}/messages` is "not supported" for delegated personal accounts),
@@ -578,7 +578,7 @@ def slugify(value, fallback="teams_chat"):
 
 
 def write_exports(session, title, conversation_id, messages, out_dir, include_system, include_events,
-                  download, make_zip):
+                  download, make_zip, make_viewer=True):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     base_dir = Path(out_dir) / f"{slugify(title)}_{stamp}"
     media_dir = base_dir / "media"
@@ -646,6 +646,15 @@ def write_exports(session, title, conversation_id, messages, out_dir, include_sy
     downloaded = sum(1 for item in manifest_items if item["status"] in ("downloaded", "reused"))
     skipped_media = sum(1 for item in manifest_items if item["status"] == "skipped")
     failed = sum(1 for item in manifest_items if item["status"] == "failed")
+
+    html_path = None
+    if make_viewer:
+        try:
+            from viewer import build_viewer
+            html_path = build_viewer(base_dir)
+        except Exception as exc:
+            info(f"viewer build failed: {exc}")
+
     zip_path = None
     if make_zip:
         zip_path = base_dir.with_suffix(".zip")
@@ -673,6 +682,7 @@ def write_exports(session, title, conversation_id, messages, out_dir, include_sy
         "json": str(json_path),
         "csv": str(csv_path),
         "manifest": str(manifest_path),
+        "html": str(html_path) if html_path else None,
         "zip": str(zip_path) if zip_path else None,
     }
 
@@ -858,7 +868,7 @@ def command_list():
     return None
 
 
-def command_export(chat, out_dir, include_system, include_events, download, make_zip):
+def command_export(chat, out_dir, include_system, include_events, download, make_zip, make_viewer=True):
     session = load_session()
     if not session:
         raise RuntimeError("No saved session. Run `login` first.")
@@ -878,7 +888,20 @@ def command_export(chat, out_dir, include_system, include_events, download, make
     info(f"Exporting {title!r}")
     messages = fetch_history(session, conversation["id"])
     return write_exports(session, title, conversation["id"], messages, out_dir,
-                         include_system, include_events, download, make_zip)
+                         include_system, include_events, download, make_zip, make_viewer)
+
+
+def command_view(folder, embed, open_after):
+    from viewer import build_viewer
+
+    target = build_viewer(folder, embed=embed, open_after=open_after)
+    return {
+        "ok": True,
+        "html": str(target),
+        "sizeBytes": target.stat().st_size,
+        "embeddedMedia": bool(embed),
+        "folder": str(Path(folder)),
+    }
 
 
 def main():
@@ -906,7 +929,15 @@ def main():
     export.add_argument("--include-events", action="store_true", help="keep call events")
     export.add_argument("--no-media", action="store_true", help="skip downloading files/images")
     export.add_argument("--zip", action="store_true", help="also write a .zip archive")
+    export.add_argument("--no-viewer", action="store_true", help="skip building the HTML reader")
     export.add_argument("--json", action="store_true")
+
+    view = sub.add_parser("view", aliases=["render", "build"],
+                          help="build a Teams-style HTML reader from an existing export folder")
+    view.add_argument("folder", help="export folder containing messages.json")
+    view.add_argument("--embed", action="store_true", help="inline images for a single portable HTML file")
+    view.add_argument("--open", action="store_true", help="open the result in the default browser")
+    view.add_argument("--json", action="store_true")
 
     debug = sub.add_parser("discover", help="debug: dump raw API samples, cookies and storage")
     debug.add_argument("--wait-minutes", type=int, default=15)
@@ -923,7 +954,10 @@ def main():
             result = command_list()
         elif args.command == "export":
             result = command_export(args.chat, args.out, args.include_system,
-                                    args.include_events, not args.no_media, args.zip)
+                                    args.include_events, not args.no_media, args.zip,
+                                    not args.no_viewer)
+        elif args.command in ("view", "render", "build"):
+            result = command_view(args.folder, args.embed, args.open)
         elif args.command == "discover":
             result = discover(args.wait_minutes, args.url)
         else:
@@ -940,8 +974,13 @@ def main():
             if not args.no_media:
                 print(f"  media: {result['mediaDownloaded']} downloaded, {result['mediaFailed']} failed")
             print(f"  folder: {result['folder']}")
+            if result.get("html"):
+                print(f"  reader: {result['html']}")
             if result["zip"]:
                 print(f"  zip: {result['zip']}")
+        elif args.command in ("view", "render", "build") and result:
+            size_kb = result["sizeBytes"] / 1024
+            print(f"Built {result['html']} ({size_kb:.0f} KB)")
         return 0
     except (RuntimeError, requests.RequestException) as exc:
         if JSON_MODE:
@@ -953,5 +992,6 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
 
 

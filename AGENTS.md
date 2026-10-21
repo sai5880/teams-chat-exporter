@@ -1,4 +1,4 @@
-﻿# AGENTS.md â€” instructions for AI agents
+# AGENTS.md — instructions for AI agents
 
 You are operating **Teams Chat Exporter**, a local CLI + MCP tool that exports a user's **personal / Teams Free** chats (messages, shared files, images, archives) to JSON and CSV.
 
@@ -66,6 +66,7 @@ Options: `--chat` (title substring or full id, required), `--out DIR`, `--no-med
   "json": "exports/project_alpha_20250101T120000Z/messages.json",
   "csv": "exports/project_alpha_20250101T120000Z/messages.csv",
   "manifest": "exports/project_alpha_20250101T120000Z/manifest.json",
+  "html": "exports/project_alpha_20250101T120000Z/chat.html",
   "zip": "exports/project_alpha_20250101T120000Z.zip"
 }
 ```
@@ -79,17 +80,27 @@ exports/<chat>_<UTC stamp>/
   messages.json    all messages, full schema incl. rawContent and media[]
   messages.csv     UTF-8 BOM, spreadsheet-friendly
   manifest.json    every media item with source URL, local path, bytes, status, error
+  chat.html        offline Teams-style reader (search, image lightbox, dark mode, print)
   media/           downloaded files and images (original names where available)
 exports/<chat>_<UTC stamp>.zip   (only with --zip)
 ```
 
 Key message fields: `timestampUtc`, `timestampLocal`, `sender`, `messageType`, `text`, `attachments`, `mediaFiles`, `reactions`, `messageId`, `threadId`.
 
+### Rebuild or share the reader
+
+```powershell
+.\.venv\Scripts\python.exe teams_web_export.py view exports\<chat>_<stamp> --json
+.\.venv\Scripts\python.exe teams_web_export.py view exports\<chat>_<stamp> --embed --json
+```
+
+Returns `{"ok": true, "html": "...", "sizeBytes": N, "embeddedMedia": false}`. Use `--embed` only when the user wants one portable file; otherwise keep `chat.html` next to `media/`.
+
 ## Typical agent workflow
 
-1. `status --json` â†’ if no valid session, ask the human to run `login`.
-2. `list --json` â†’ locate the target chat id.
-3. `export --chat "<id>" --zip --json` â†’ report paths and counts to the user.
+1. `status --json` → if no valid session, ask the human to run `login`.
+2. `list --json` → locate the target chat id.
+3. `export --chat "<id>" --zip --json` → report paths and counts to the user.
 4. If the user wants analysis, read `messages.csv` / `messages.json` from the returned paths. Do not paste private chat content into public places.
 
 ## MCP server (preferred for tool-using agents)
@@ -141,5 +152,6 @@ MCP tool calls return a single text content block containing the same JSON as th
 
 - "Do I have to open the chat and scroll?" **No.** `login` only needs the chat list to load. History is fetched through the API with backward pagination, and media is downloaded directly.
 - "Does it export files, images, ZIPs?" **Yes**, when `--media` is on (default). Failures are listed in `manifest.json`.
+- "How does the user read the export?" Open `chat.html` in the export folder; it is fully offline. `--embed` makes a single shareable file.
 - "All chats or one?" **One chat per `export` call.** Call `export` for each chat id from `list`.
 
