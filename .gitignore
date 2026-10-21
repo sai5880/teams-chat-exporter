@@ -6,3 +6,4 @@ capture/
 .browser_profile/
 go.flag
 exports/
+*.log

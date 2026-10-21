@@ -1,28 +1,30 @@
 # Teams Chat Exporter (personal accounts)
 
-Export your own **Microsoft Teams Free / personal** chats and group chats to JSON and CSV — the thing Microsoft Graph refuses to do.
+Export your own **Microsoft Teams Free / personal** chats and group chats — messages, shared files, images and ZIPs — to JSON, CSV and a ZIP archive.
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-windows%20%7C%20macos%20%7C%20linux-lightgrey)]()
+[![MCP](https://img.shields.io/badge/MCP-ready-purple)](AGENTS.md)
 
-> Graph's `/chats/{id}/messages` endpoint is marked **"Delegated (personal Microsoft account): Not supported"** in Microsoft's docs. A registered Entra app cannot fix that. This tool works around it by reusing your own signed-in Teams web session locally — no app registration, no admin consent, no third-party server.
+> Microsoft Graph's `/chats/{id}/messages` endpoint is marked **"Delegated (personal Microsoft account): Not supported"** in Microsoft's docs, and no app registration changes that. This tool instead reuses your own signed-in Teams web session locally: no Entra app, no admin consent, no third-party server.
 
 ## Features
 
-- Works with **personal Microsoft accounts** (Teams Free), including group chats and meeting chats.
-- **Full history**: follows the API's `backwardLink` pagination instead of stopping at the newest page.
-- Clean output: sender, local + UTC timestamp, plain text (HTML stripped), links, attachments, reactions, message id, thread id.
-- JSON + Excel-friendly CSV (UTF-8 BOM).
+- Works with **personal Microsoft accounts** (Teams Free), including group and meeting chats.
+- **One sign-in, no scrolling.** After `login`, chats are listed and full history is paged through the API — you do not open or scroll any chat.
+- **Media export**: shared files, attachments, ZIPs and inline images are downloaded into `media/`, with a `manifest.json` recording source URL, size and status (`downloaded`, `reused`, `skipped` for emoji/sticker CDN assets, `failed`).
+- Clean messages: sender, local + UTC timestamp, plain text, links, reactions, message id, thread id.
+- JSON + Excel-friendly CSV (UTF-8 BOM) + optional `.zip` of the whole export.
 - Optional join/leave and call events (`--include-system`, `--include-events`).
-- Everything runs **locally**: no telemetry, no uploads, no cloud service.
+- **Agent-ready**: `--json` on every command, exit codes, [AGENTS.md](AGENTS.md) contract, and a dependency-free [MCP server](mcp_server.py).
+- Fully local: no telemetry, no uploads.
 
 ## How it works
 
-1. `discover` opens a Chromium window with a dedicated persistent profile. You sign in to Teams normally; the script records the session token and API samples into a local `capture/` folder.
-2. `export` replays the Teams web client's own endpoint (`/api/chatsvc/consumer/v1/users/ME/conversations/{id}/messages`) with that token, paginating backwards until the start of the thread.
+1. `login` opens Chromium with a dedicated profile. Once you sign in to Teams, the script saves the session token locally and closes the browser. It does **not** read messages from the page.
+2. `list` / `export` replay the Teams web client's own API (`/api/chatsvc/consumer/v1/...`) with that token, paginating backwards until the thread start, then download declared files and images.
 
-The token is a normal Teams session token (about 8 hours). Nothing is stored anywhere except your machine.
+The token is a normal Teams session token, valid for about 8 hours.
 
 ## Quickstart
 
@@ -44,30 +46,36 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-### 1. Capture a session
+### 1. Sign in once
 
 ```powershell
-python teams_web_export.py discover
+python teams_web_export.py login
 ```
 
-- A browser window opens at Teams.
-- Sign in and open the chat you want.
-- Scroll the history a little so Teams loads messages.
-- Create an empty file named `go.flag` in the project folder (any way you like) to finish the capture.
+A browser opens. Sign in with the personal account that owns the chats. The window closes by itself as soon as Teams loads — no chat needs to be opened or scrolled.
 
-### 2. List chats and export
+### 2. List chats
 
 ```powershell
 python teams_web_export.py list
-python teams_web_export.py export --chat "part of the chat name"
 ```
 
-You can also pass the full conversation id (`--chat 19:...@thread.v2`). Output lands in `exports/`:
+### 3. Export
+
+```powershell
+python teams_web_export.py export --chat "part of the chat name" --zip
+```
+
+Pass a full conversation id (`19:...@thread.v2`) when titles are ambiguous. Output:
 
 ```
 exports/
-  my_group_chat_20250101T120000Z.json
-  my_group_chat_20250101T120000Z.csv
+  my_group_chat_20250101T120000Z/
+    messages.json     all messages (+ rawContent, media[])
+    messages.csv      timestampLocal, sender, text, attachments, mediaFiles, ...
+    manifest.json     every media item: source, local path, bytes, status, error
+    media/            downloaded files, images, ZIPs (original names where possible)
+  my_group_chat_20250101T120000Z.zip
 ```
 
 Flags:
@@ -76,12 +84,18 @@ Flags:
 | --- | --- |
 | `--chat` | Chat title substring or full conversation id (required) |
 | `--out` | Output folder (default `exports/`) |
+| `--no-media` | Skip downloading files/images |
+| `--zip` | Also write a `.zip` of the export folder |
 | `--include-system` | Keep join/leave/rename events |
-| `--include-events` | Keep call started/ended events (summarized) |
+| `--include-events` | Keep call events (summarized) |
+
+## Using it from AI agents
+
+- Read [AGENTS.md](AGENTS.md) — it documents the command contract, JSON schemas, error table and hard security rules.
+- Every command supports `--json` for a single parseable object on stdout.
+- `mcp_server.py` exposes `teams_status`, `teams_list_chats` and `teams_export_chat` over MCP stdio. Example client config is in AGENTS.md.
 
 ## Output format
-
-JSON:
 
 ```json
 {
@@ -97,39 +111,48 @@ JSON:
       "messageType": "RichText/Html",
       "contentType": "Text",
       "text": "Deploy is done",
-      "attachments": "",
+      "attachments": "logs.zip",
+      "mediaFiles": "media/20241102_0_logs.zip",
       "reactions": "like:2",
       "messageId": "1730538843000",
       "sequenceId": 42,
       "threadId": "19:...@thread.v2",
+      "media": [
+        {"kind": "file", "name": "logs.zip", "source": "https://...", "status": "downloaded", "path": "media/20241102_0_logs.zip", "bytes": 5120, "error": ""}
+      ],
       "rawContent": "<p>Deploy is done</p>"
     }
   ]
 }
 ```
 
-CSV columns: `timestampLocal, timestampUtc, sender, messageType, text, attachments, reactions, messageId, threadId`.
-
 ## Privacy and security
 
-- `capture/` contains a **live session token** and cookies. Treat it like a password, never commit or share it, and delete it when finished (`capture/` is gitignored).
-- The tool only talks to `teams.live.com`; it never sends your data anywhere else.
-- Exports contain private conversations. `exports/` and `.browser_profile/` are gitignored.
-- Sessions expire after roughly 8 hours; rerun `discover` when `export` reports a 401.
+- `capture/session.json` holds a **live session token** and cookies. Treat it like a password; it is gitignored and should be deleted when finished.
+- `exports/` contains private conversations and files. Also gitignored.
+- Media downloads are restricted to Microsoft hosts; redirects are re-checked against that allowlist.
+- No data leaves your machine except requests to `teams.live.com` and, when downloading attachments, the Microsoft host serving the file.
 
 ## Limitations
 
 - Personal accounts only. Work/school accounts should use Graph with admin-approved `Chat.Read` (a Flask sample is included in `app.py`).
-- Undocumented endpoint: Microsoft may change it without notice. The `discover` mode exists precisely so selectors/endpoints can be re-checked.
-- Attachments are listed, not downloaded; inline images appear as `[image]` placeholders.
-- One chat per run; no PDF output (CSV/JSON can be imported elsewhere for that).
+- Undocumented endpoint: Microsoft can change it. `discover` exists to re-check raw traffic when that happens.
+- Attachments are listed and downloaded when reachable; some file links may require a fresh interactive session and will be reported in `manifest.json` instead of downloaded.
+- One chat per `export` call.
 
-## Troubleshooting
+## FAQ
 
-- **Stuck on the Teams splash screen**: close the window and rerun `discover`; the saved profile keeps you signed in.
-- **`No conversation matched`**: run `list` and copy the exact title fragment or id.
-- **401 from the Teams API**: the token expired — rerun `discover`.
-- **Empty chat list**: make sure you signed in with the personal account that owns the chats, not a work/school one.
+**Do I need to open a chat and scroll through it?**
+No. `login` only needs the chat list to load. History and media come from the API, so exports work even for chats you never open.
+
+**Does it export everything shared in a group, not just text?**
+Yes: files, images, ZIPs and other attachments are downloaded with `--media` (on by default) and recorded in `manifest.json`.
+
+**Why not use Microsoft Graph?**
+Graph chat messages do not support delegated personal accounts at all. Registering an Entra app cannot fix it.
+
+**Token stopped working?**
+Sessions last roughly 8 hours. Run `login` again.
 
 ## License
 
