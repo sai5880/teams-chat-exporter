@@ -80,7 +80,7 @@ exports/<chat>_<UTC stamp>/
   messages.json    all messages, full schema incl. rawContent and media[]
   messages.csv     UTF-8 BOM, spreadsheet-friendly
   manifest.json    every media item with source URL, local path, bytes, status, error
-  chat.html        offline Teams-style reader (search, image lightbox, dark mode, print)
+  chat.html        offline Teams-style reader (full-text search sidebar, load all, image lightbox, dark mode, print)
   media/           downloaded files and images (original names where available)
 exports/<chat>_<UTC stamp>.zip   (only with --zip)
 ```

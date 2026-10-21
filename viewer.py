@@ -100,6 +100,30 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
 #jump{position:fixed;right:22px;bottom:22px;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);
   background:var(--pane);color:var(--text);box-shadow:var(--shadow);cursor:pointer;display:none;z-index:15}
 #jump.show{display:flex;align-items:center;justify-content:center}
+.results{position:fixed;top:61px;left:0;bottom:0;width:340px;max-width:92vw;z-index:19;
+  background:var(--pane);border-right:1px solid var(--line);box-shadow:6px 0 18px rgba(0,0,0,.08);
+  display:none;flex-direction:column}
+.results.open{display:flex}
+.results header{display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid var(--line)}
+.results h2{margin:0;font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rlist{overflow-y:auto;flex:1;padding:6px}
+.rnote{padding:10px 12px;color:var(--muted);font-size:11px;border-top:1px solid var(--line)}
+.result{display:block;width:100%;text-align:left;border:0;background:transparent;color:inherit;
+  padding:8px 10px;border-radius:8px;cursor:pointer;font:inherit}
+.result:hover,.result:focus-visible{background:var(--hover);outline:none}
+.result .rtop{display:flex;gap:8px;align-items:baseline;font-size:11px;color:var(--muted)}
+.result .rname{font-weight:600;color:var(--text);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.result .rtime{margin-left:auto;white-space:nowrap}
+.result .rtext{font-size:12px;color:var(--text);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.result mark{background:#ffe58f;color:#000;border-radius:2px;padding:0 1px}
+html[data-theme="dark"] .result mark{background:#7a6a00;color:#fff}
+.msg.flash .bubble{outline:2px solid var(--brand);outline-offset:2px}
+.msg.flash .bubble{animation:flash 2.4s ease-out}
+@keyframes flash{0%{background:var(--brand-soft)}100%{background:var(--bubble)}}
+@media (min-width:761px){body.results-open main{margin-left:356px;margin-right:16px}}
+@media (max-width:760px){.results{width:100%;top:0;z-index:40}}
+main{transition:margin-left .15s ease}
 .lightbox{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.88);display:none;
   align-items:center;justify-content:center;flex-direction:column;gap:12px;padding:24px}
 .lightbox.open{display:flex}
@@ -148,6 +172,15 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
   <div id="list"></div>
   <div class="empty" id="empty" hidden>No messages match your search.</div>
 </main>
+<aside class="results" id="results" aria-label="Search results">
+  <header>
+    <h2 id="resultsTitle">Results</h2>
+    <button class="iconbtn" id="resultsClose" title="Close results" aria-label="Close results">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </header>
+  <div class="rlist" id="resultList"></div>
+</aside>
 <button id="jump" title="Back to newest" aria-label="Back to newest">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
 </button>
@@ -173,7 +206,7 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
   var countChip = document.getElementById("countChip");
   var scroller = window;
   var PAGE = 200;
-  var state = {limit: PAGE, filter: "", shown: 0};
+  var state = {limit: PAGE, query: "", shown: 0, results: []};
 
   function initials(name){
     var parts = (name || "?").trim().split(/\s+/).filter(Boolean);
@@ -237,14 +270,33 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
     document.getElementById("lightbox").classList.remove("open");
     document.getElementById("lbImage").src = "";
   }
-  function matches(msg){
-    if(!state.filter) return true;
-    var q = state.filter;
+  function matches(msg, q){
+    if(!q) return true;
     if((msg.s || "").toLowerCase().indexOf(q) !== -1) return true;
     if((msg.x || "").toLowerCase().indexOf(q) !== -1) return true;
     if((msg.a || "").toLowerCase().indexOf(q) !== -1) return true;
     if((msg.m || []).some(function(item){ return (item.n || "").toLowerCase().indexOf(q) !== -1; })) return true;
     return false;
+  }
+  function searchableText(msg){
+    var parts = [msg.x || "", msg.a || ""];
+    (msg.m || []).forEach(function(item){ if(item.n) parts.push(item.n); });
+    return parts.join("\n");
+  }
+  function shortDate(iso){
+    var d = new Date((iso || "").slice(0,10) + "T00:00:00");
+    return isNaN(d) ? (iso || "").slice(0,10) : d.toLocaleDateString(undefined, {year:"numeric", month:"short", day:"numeric"});
+  }
+  function addHighlight(el, text, q){
+    var lower = text.toLowerCase(), pos = 0, idx;
+    while((idx = lower.indexOf(q, pos)) !== -1){
+      if(idx > pos) el.appendChild(document.createTextNode(text.slice(pos, idx)));
+      var mark = document.createElement("mark");
+      mark.textContent = text.slice(idx, idx + q.length);
+      el.appendChild(mark);
+      pos = idx + q.length;
+    }
+    if(pos < text.length) el.appendChild(document.createTextNode(text.slice(pos)));
   }
   function buildMessage(msg, previous){
     var time = msg.t || msg.u || "";
@@ -262,6 +314,7 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
     var sameSender = previous && previous.s === msg.s && prevDay === day;
     var row = document.createElement("div");
     row.className = "msg" + (sameSender ? " grouped" : "");
+    row.dataset.idx = String(msg.i);
     if(sameSender){
       var ghost = document.createElement("div");
       ghost.className = "avatar ghost";
@@ -366,8 +419,7 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
     return frag;
   }
   function render(keepScroll){
-    var visible = messages.filter(matches);
-    var slice = state.filter ? visible : visible.slice(Math.max(0, visible.length - state.limit));
+    var slice = messages.slice(Math.max(0, messages.length - state.limit));
     var prevHeight = document.documentElement.scrollHeight;
     var prevTop = window.scrollY;
     list.textContent = "";
@@ -378,30 +430,109 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
     list.appendChild(frag);
     state.shown = slice.length;
     empty.hidden = slice.length > 0;
-    var totalLabel = state.filter
-      ? state.shown + " of " + messages.length + " messages"
-      : messages.length.toLocaleString() + " messages";
-    countChip.textContent = state.filter ? totalLabel : "Showing " + state.shown.toLocaleString() + " of " + totalLabel;
+    countChip.textContent = state.shown >= messages.length
+      ? "All " + messages.length.toLocaleString() + " messages"
+      : "Showing " + state.shown.toLocaleString() + " of " + messages.length.toLocaleString() + " messages";
     hint.style.display = "flex";
-    var old = document.getElementById("loadEarlier");
-    if(old) old.remove();
-    if(!state.filter && state.limit < messages.length){
-      var btn = document.createElement("button");
-      btn.id = "loadEarlier";
-      btn.className = "chip";
-      btn.style.margin = "0 auto 16px";
-      btn.style.display = "block";
-      btn.textContent = "Load earlier messages";
-      btn.addEventListener("click", function(){
+    var oldEarlier = document.getElementById("loadEarlier");
+    if(oldEarlier) oldEarlier.remove();
+    var oldAll = document.getElementById("loadAll");
+    if(oldAll) oldAll.remove();
+    if(state.shown < messages.length){
+      var earlier = document.createElement("button");
+      earlier.id = "loadEarlier";
+      earlier.className = "chip";
+      earlier.textContent = "Load earlier messages";
+      earlier.addEventListener("click", function(){
         state.limit += PAGE;
         render(true);
       });
-      hint.appendChild(btn);
+      hint.appendChild(earlier);
+      var all = document.createElement("button");
+      all.id = "loadAll";
+      all.className = "chip";
+      all.textContent = "Load all " + messages.length.toLocaleString() + " messages";
+      all.addEventListener("click", function(){
+        all.textContent = "Loading?";
+        setTimeout(function(){ state.limit = messages.length; render(true); }, 30);
+      });
+      hint.appendChild(all);
     }
     if(keepScroll){
       var delta = document.documentElement.scrollHeight - prevHeight;
       window.scrollTo(0, prevTop + delta);
     }
+  }
+  function closeResults(){ document.getElementById("results").classList.remove("open"); document.body.classList.remove("results-open"); }
+  function renderResults(){
+    var resultsPanel = document.getElementById("results");
+    var resultList = document.getElementById("resultList");
+    var title = document.getElementById("resultsTitle");
+    resultList.textContent = "";
+    title.textContent = state.results.length.toLocaleString() +
+      (state.results.length === 1 ? " result for " : " results for ") + "\u201c" + search.value.trim() + "\u201d";
+    var cap = Math.min(state.results.length, 500);
+    var frag = document.createDocumentFragment();
+    for(var i = 0; i < cap; i++){
+      var msg = state.results[i];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "result";
+      btn.dataset.idx = String(msg.i);
+      var top = document.createElement("div");
+      top.className = "rtop";
+      var name = document.createElement("span");
+      name.className = "rname";
+      name.textContent = msg.s || "(unknown)";
+      var time = document.createElement("span");
+      time.className = "rtime";
+      time.textContent = shortDate(msg.t) + " " + clock(msg.t);
+      top.appendChild(name); top.appendChild(time);
+      var body = document.createElement("div");
+      body.className = "rtext";
+      var text = searchableText(msg).replace(/\s+/g, " ").trim();
+      var q = state.query;
+      var at = text.toLowerCase().indexOf(q);
+      var snippet = text;
+      if(at > 90){
+        var start = at - 70;
+        snippet = "?" + text.slice(start, start + 190) + (start + 190 < text.length ? "?" : "");
+      } else if(text.length > 190){
+        snippet = text.slice(0, 190) + "?";
+      }
+      if(!snippet) snippet = "(media only)";
+      addHighlight(body, snippet, q);
+      btn.appendChild(top); btn.appendChild(body);
+      frag.appendChild(btn);
+    }
+    resultList.appendChild(frag);
+    if(state.results.length > cap){
+      var note = document.createElement("div");
+      note.className = "rnote";
+      note.textContent = "Showing first " + cap + " of " + state.results.length.toLocaleString() + " results. Refine your search to narrow it down.";
+      resultList.appendChild(note);
+    }
+    resultsPanel.classList.add("open");
+    document.body.classList.add("results-open");
+  }
+  function runSearch(){
+    var q = search.value.trim().toLowerCase();
+    state.query = q;
+    if(!q){ closeResults(); return; }
+    state.results = messages.filter(function(msg){ return matches(msg, q); });
+    renderResults();
+  }
+  function jumpTo(idx){
+    var el = list.querySelector('[data-idx="' + idx + '"]');
+    if(!el){
+      state.limit = Math.min(messages.length, messages.length - idx + 40);
+      render(false);
+      el = list.querySelector('[data-idx="' + idx + '"]');
+    }
+    if(!el) return;
+    el.scrollIntoView({block: "center", behavior: "smooth"});
+    el.classList.add("flash");
+    setTimeout(function(){ el.classList.remove("flash"); }, 2600);
   }
   document.getElementById("chatTitle").textContent = DATA.title || "Teams chat";
   var stats = [];
@@ -433,15 +564,20 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
   var timer = null;
   search.addEventListener("input", function(){
     clearTimeout(timer);
-    timer = setTimeout(function(){
-      state.filter = search.value.trim().toLowerCase();
-      state.limit = PAGE;
-      render(false);
-    }, 120);
+    timer = setTimeout(runSearch, 160);
+  });
+  document.getElementById("resultsClose").addEventListener("click", closeResults);
+  document.getElementById("resultList").addEventListener("click", function(event){
+    var button = event.target.closest(".result");
+    if(button) jumpTo(Number(button.dataset.idx));
   });
   document.addEventListener("keydown", function(event){
     if(event.key === "/" && document.activeElement !== search){ event.preventDefault(); search.focus(); }
-    if(event.key === "Escape"){ closeLightbox(); if(document.activeElement === search){ search.value = ""; state.filter = ""; render(false); } }
+    if(event.key === "Escape"){
+      closeLightbox();
+      if(document.getElementById("results").classList.contains("open")){ closeResults(); }
+      if(document.activeElement === search){ search.value = ""; state.query = ""; }
+    }
   });
 
   document.getElementById("jump").addEventListener("click", function(){
@@ -469,7 +605,7 @@ main{max-width:920px;margin:0 auto;padding:20px 16px 72px}
   });
 
   window.onbeforeprint = function(){
-    if(!state.filter && state.limit < messages.length){
+    if(state.limit < messages.length){
       state.limit = messages.length;
       render(false);
     }
@@ -499,7 +635,7 @@ def compact(payload):
     media_count = 0
     messages = []
     senders = []
-    for message in payload.get("messages", []):
+    for index, message in enumerate(payload.get("messages", [])):
         media = []
         for item in message.get("media") or []:
             if item.get("status") not in ("downloaded", "reused"):
@@ -516,6 +652,7 @@ def compact(payload):
         if sender and sender not in senders:
             senders.append(sender)
         messages.append({
+            "i": index,
             "t": message.get("timestampLocal") or message.get("timestampUtc") or "",
             "u": message.get("timestampUtc") or "",
             "s": sender,

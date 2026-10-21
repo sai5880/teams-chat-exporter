@@ -13,7 +13,8 @@ Export your own **Microsoft Teams Free / personal** chats and group chats — me
 - Works with **personal Microsoft accounts** (Teams Free), including group and meeting chats.
 - **One sign-in, no scrolling.** After `login`, chats are listed and full history is paged through the API — you do not open or scroll any chat.
 - **Media export**: shared files, attachments, ZIPs and inline images are downloaded into `media/`, with a `manifest.json` recording source URL, size and status (`downloaded`, `reused`, `skipped` for emoji/sticker CDN assets, `failed`).
-- **Built-in reader**: every export compiles an offline Teams-style `chat.html` with avatars, day separators, image lightbox, attachment cards, search, dark mode and print support.
+- **Built-in reader**: every export compiles an offline Teams-style `chat.html` with avatars, day separators, image lightbox, attachment cards, dark mode and print support.
+- **Search everything**: results sidebar over every message in the JSON (not just rendered ones) with click-to-jump and match highlighting, plus **Load all messages** alongside incremental loading.
 - Clean messages: sender, local + UTC timestamp, plain text, links, reactions, message id, thread id.
 - JSON + Excel-friendly CSV (UTF-8 BOM) + optional `.zip` of the whole export.
 - Optional join/leave and call events (`--include-system`, `--include-events`).
