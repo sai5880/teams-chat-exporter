@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="panel">
+  <div class="item"><div><strong>Signed in:</strong> {{ me.get('displayName','Microsoft user') }} <span class="muted">{{ me.get('userPrincipalName','') }}</span></div><a href="{{ url_for('logout') }}">Sign out</a></div>
+</div>
+<h2>Your chats ({{ chats|length }})</h2>
+{% for chat in chats %}
+  <div class="panel item">
+    <div>
+      <strong>{{ chat.get('topic') or chat.get('chatType','Chat') }}</strong><br>
+      <span class="muted">{{ chat.get('chatType','') }} · {{ (chat.get('lastMessagePreview') or {}).get('createdDateTime','') }}</span><br>
+      <small>ID: <code>{{ chat.get('id','') }}</code></small>
+    </div>
+    <div>
+      <a class="btn" href="{{ url_for('chat_detail', chat_id=chat.get('id','')) }}">View messages</a>
+      <a class="btn" href="{{ url_for('export_chat', fmt='json', chat_id=chat.get('id','')) }}">JSON</a>
+      <a class="btn" href="{{ url_for('export_chat', fmt='csv', chat_id=chat.get('id','')) }}">CSV</a>
+    </div>
+  </div>
+{% else %}
+  <p>No chats were returned. If there is an error above, check API permissions and account type.</p>
+{% endfor %}
+{% endblock %}

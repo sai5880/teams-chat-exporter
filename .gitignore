@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+capture/
+.browser_profile/
+go.flag
+exports/

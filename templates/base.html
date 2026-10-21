@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Teams Chat Exporter</title>
+  <style>
+    :root { color-scheme: light dark; --border: #8885; --panel: #8881; }
+    body { max-width: 1050px; margin: 36px auto; padding: 0 18px; font: 16px/1.5 system-ui, sans-serif; }
+    a { color: #6ea8fe; } .muted { opacity: .75; } .panel { border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 14px 0; }
+    .item { display:flex; justify-content:space-between; gap:20px; align-items:center; flex-wrap:wrap; }
+    .btn { display:inline-block; border:1px solid var(--border); border-radius:8px; padding:8px 12px; text-decoration:none; margin:3px; }
+    .error { border-left:4px solid #d55; padding:10px 14px; background:var(--panel); overflow-wrap:anywhere; }
+    .message { border-bottom:1px solid var(--border); padding:12px 0; overflow-wrap:anywhere; }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+    code { overflow-wrap:anywhere; }
+  </style>
+</head>
+<body>
+  <h1><a href="/" style="text-decoration:none;color:inherit">Teams Chat Exporter</a></h1>
+  <p class="muted">Local Flask app for exporting chats from supported Microsoft 365 work/school accounts.</p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</body>
+</html>

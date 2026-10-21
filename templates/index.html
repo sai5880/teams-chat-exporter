@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="panel">
+  <h2>Sign in to Microsoft</h2>
+  <p>This app lists your accessible Teams chats and exports messages to JSON or CSV.</p>
+  <p><strong>Account limitation:</strong> Microsoft Graph's chat-message endpoint does not support delegated personal Microsoft accounts. This app is for eligible work or school accounts only.</p>
+  {% if not configured %}
+    <p>Before signing in, create a Microsoft Entra app registration and configure the <code>.env</code> file as described in README.md.</p>
+  {% endif %}
+  <a class="btn" href="{{ url_for('login') }}">Sign in with Microsoft</a>
+</div>
+<div class="panel">
+  <h3>For a personal Teams account</h3>
+  <p>Use the official export at <a href="https://teams.live.com/export">teams.live.com/export</a>, then process the downloaded archive locally. Graph API won't read that personal chat.</p>
+</div>
+{% endblock %}

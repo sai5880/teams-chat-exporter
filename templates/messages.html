@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<p><a href="{{ url_for('chats') }}">← Back to chats</a></p>
+<div class="panel">
+  <h2>{{ chat.get('topic') or chat.get('chatType','Chat') }}</h2>
+  <p>{{ messages|length }} messages loaded.</p>
+  <a class="btn" href="{{ url_for('export_chat', fmt='json', chat_id=chat.get('id','')) }}">Download JSON</a>
+  <a class="btn" href="{{ url_for('export_chat', fmt='csv', chat_id=chat.get('id','')) }}">Download CSV</a>
+</div>
+{% for m in messages %}
+  <div class="message">
+    <strong>{{ (m.get('from') or {}).get('user',{}).get('displayName','Unknown sender') }}</strong>
+    <span class="muted"> · {{ m.get('createdDateTime','') }}</span>
+    <div>{{ ((m.get('body') or {}).get('content','')|striptags)|e }}</div>
+  </div>
+{% else %}
+  <p>No messages found.</p>
+{% endfor %}
+{% endblock %}
